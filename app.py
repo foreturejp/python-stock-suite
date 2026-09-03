@@ -1,7 +1,6 @@
 from datetime import datetime, time, timedelta
 import itertools
 import os
-import time as t_mod
 import warnings
 from google import genai
 import numpy as np
@@ -75,8 +74,6 @@ def get_stock_sector(code, name):
   code_str = str(code).strip()
   name_str = str(name).strip()
 
-  if code_str == "1815" or "富喬" in name_str:
-    return "🧵 玻纖布與上游材料"
   if code_str == "2408" or "南亞科" in name_str:
     return "💾 記憶體與控制模組"
   if code_str == "1303" or name_str == "南亞":
@@ -185,11 +182,10 @@ def get_stock_sector(code, name):
       "4958": "🧬 PCB與高階載板",
       "6269": "🧬 PCB與高階載板",
       "8358": "🧬 PCB與高階載板",
+      "1815": "🧬 PCB與高階載板",
       "8039": "🧬 PCB與高階載板",
       "3715": "🧬 PCB與高階載板",
       "5469": "🧬 PCB與高階載板",
-      "1815": "🧵 玻纖布與上游材料",
-      "6223": "⚙️ 測試介面與探針卡",
       "2308": "🔋 電源管理與儲能",
       "2301": "🔋 電源管理與儲能",
       "6282": "🔋 電源管理與儲能",
@@ -302,6 +298,152 @@ def get_stock_sector(code, name):
   if code_str in SECTOR_MAP:
     return SECTOR_MAP[code_str]
 
+  if any(
+      k in name_str
+      for k in [
+          "華邦電",
+          "群聯",
+          "威剛",
+          "十銓",
+          "宇瞻",
+          "創見",
+          "晶豪科",
+          "旺宏",
+      ]
+  ):
+    return "💾 記憶體與控制模組"
+  if any(
+      k in name_str
+      for k in [
+          "光聖",
+          "華星光",
+          "光環",
+          "波若威",
+          "上詮",
+          "聯光通",
+          "聯亞",
+          "全新",
+          "創威",
+      ]
+  ):
+    return "🔥 光通訊與矽光子"
+  if any(
+      k in name_str
+      for k in [
+          "奇鋐",
+          "雙鴻",
+          "健策",
+          "高力",
+          "泰碩",
+          "力致",
+          "動力",
+          "業強",
+      ]
+  ):
+    return "🧊 水冷與散熱模組"
+  if any(
+      k in name_str
+      for k in [
+          "弘塑",
+          "辛耘",
+          "萬潤",
+          "均華",
+          "志聖",
+          "家登",
+          "中砂",
+          "昇陽半",
+      ]
+  ):
+    return "🔬 半導體設備與廠務"
+  if any(
+      k in name_str
+      for k in [
+          "台光電",
+          "金像電",
+          "欣興",
+          "南電",
+          "景碩",
+          "台燿",
+          "聯茂",
+          "華通",
+          "定穎",
+      ]
+  ):
+    return "🧬 PCB與高階載板"
+  if any(
+      k in name_str
+      for k in ["勤誠", "營邦", "晟銘電", "迎廣", "川湖", "富世達"]
+  ):
+    return "🖥️ 伺服器機殼與導軌"
+  if any(k in name_str for k in ["華城", "士電", "中興電", "亞力", "大同"]):
+    return "⚡ 重電與電網基建"
+  if any(
+      k in name_str
+      for k in ["上銀", "亞德客", "所羅門", "大銀微", "精銳", "昆盈"]
+  ):
+    return "🦾 工具機與機器人"
+  if any(
+      k in name_str
+      for k in ["貿聯", "嘉澤", "信邦", "宏致", "健和興", "凡甲"]
+  ):
+    return "🔌 連接器與高頻傳輸"
+  if any(
+      k in name_str
+      for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
+  ):
+    return "🔋 被動元件與電感"
+  if any(k in name_str for k in ["大立光", "玉晶光", "先進光", "亞光"]):
+    return "📷 光學鏡頭與影像"
+  if any(k in name_str for k in ["群創", "友達", "彩晶"]):
+    return "📺 面板及光電顯示"
+  if any(
+      k in name_str
+      for k in ["長榮", "陽明", "萬海", "裕民", "慧洋", "新興"]
+  ):
+    return "🚢 航運交通"
+  if any(k in name_str for k in ["保瑞", "藥華藥", "美時", "康霈"]):
+    return "💊 生技醫療CDMO"
+  if any(k in name_str for k in ["興富發", "冠德", "國建", "華固"]):
+    return "🏘️ 營建與地產開發"
+  if any(
+      k in name_str
+      for k in ["台塑", "台化", "台苯", "國喬", "聯成", "塑膠", "化學"]
+  ):
+    return "🧪 塑膠與化學工業"
+
+  try:
+    c_int = int(code_str)
+  except Exception:
+    c_int = 0
+
+  if 2800 <= c_int <= 2899 or any(
+      k in name_str for k in ["銀行", "金控", "證券", "保險"]
+  ):
+    return "🏦 金融控股"
+  elif 2600 <= c_int <= 2649 or any(
+      k in name_str for k in ["海運", "航運", "航空"]
+  ):
+    return "🚢 航運交通"
+  elif 2500 <= c_int <= 2599:
+    return "🏘️ 營建與地產開發"
+  elif 1300 <= c_int <= 1349:
+    return "🧪 塑膠與化學工業"
+  elif 2000 <= c_int <= 2049:
+    return "🔩 鋼鐵工業"
+  elif 1500 <= c_int <= 1599:
+    return "⚡ 重電與電網基建"
+  elif 1600 <= c_int <= 1699:
+    return "⚡ 重電與電線電纜"
+  elif 1700 <= c_int <= 1799 or 4100 <= c_int <= 4199:
+    return "💊 生技醫療CDMO"
+  elif (
+      2300 <= c_int <= 2499
+      or 3000 <= c_int <= 3799
+      or 6000 <= c_int <= 6999
+      or 8000 <= c_int <= 8999
+  ):
+    return "🔌 電子零組件與模組"
+
   return "📊 其他傳統產業與消費"
 
 
@@ -347,84 +489,54 @@ def get_cached_shareholding_dict():
     return {}, "讀取快取失敗"
 
 
-# ─────────────────────────────────────────────────────────────
-# 🎯 智慧容錯搜尋引擎：從 stock_list.csv 自動查找代號與名稱
-# ─────────────────────────────────────────────────────────────
-@st.cache_data(ttl=3600)
-def load_stock_map():
-  stock_dict = {}
-  csv_file = os.path.join(os.path.dirname(__file__), "stock_list.csv")
-  if os.path.exists(csv_file):
-    for enc in ["utf-8-sig", "utf-8", "big5", "cp950"]:
-      try:
-        df_csv = pd.read_csv(csv_file, dtype=str, encoding=enc)
-        df_csv.columns = [str(c).strip() for c in df_csv.columns]
-        code_col = next(
-            (
-                c
-                for c in df_csv.columns
-                if any(k in c for k in ["代號", "code", "id"])
-            ),
-            None,
-        )
-        name_col = next(
-            (
-                c
-                for c in df_csv.columns
-                if any(k in c for k in ["名稱", "name"])
-            ),
-            None,
-        )
-        if code_col and name_col:
-          for _, row in df_csv.iterrows():
-            c = str(row[code_col]).strip()
-            n = str(row[name_col]).strip()
-            if c.isdigit() and len(c) == 4:
-              stock_dict[c] = n
-          if stock_dict:
-            break
-      except Exception:
-        continue
-
-  # 預設保底
-  defaults = {
-      "2330": "台積電",
-      "2317": "鴻海",
-      "2454": "聯發科",
-      "1815": "富喬",
-      "6223": "旺矽",
-      "2408": "南亞科",
-  }
-  for k, v in defaults.items():
-    if k not in stock_dict:
-      stock_dict[k] = v
-
-  return stock_dict
-
-
-def resolve_stock_input(user_input):
-  """輸入任意代號或名稱，自動從 stock_list.csv 撈出正確的 (代號, 名稱)"""
-  q = str(user_input).strip()
-  if not q:
-    return "2330", "台積電"
-
-  stock_dict = load_stock_map()
-
-  # 1. 如果直接輸入是代號 (例如 "1815")
-  if q in stock_dict:
-    return q, stock_dict[q]
-
-  # 2. 如果輸入的是名稱 (例如 "富喬")
-  for code, name in stock_dict.items():
-    if q in name or name in q or q == code:
-      return code, name
-
-  return q, "自訂個股"
-
-
+@st.cache_data(ttl=86400)
 def load_stock_list():
-  stock_dict = load_stock_map()
-  return {f"{code} {name}": code for code, name in stock_dict.items()}
+  try:
+    url_twse = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&type=ALL"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    res = requests.get(url_twse, headers=headers, timeout=10)
+    stock_map = {}
+    if res.status_code == 200 and res.text.strip().startswith("{"):
+      json_data = res.json()
+      if "tables" in json_data:
+        for table in json_data["tables"]:
+          if "fields" in table and "data" in table:
+            fields = table["fields"]
+            if any("證券代號" in str(f) for f in fields) and any(
+                "證券名稱" in str(f) for f in fields
+            ):
+              c_idx = [
+                  i for i, f in enumerate(fields) if "證券代號" in str(f)
+              ][0]
+              n_idx = [
+                  i for i, f in enumerate(fields) if "證券名稱" in str(f)
+              ][0]
+              for row in table["data"]:
+                c, n = str(row[c_idx]).strip(), str(row[n_idx]).strip()
+                if c.isdigit() and len(c) == 4:
+                  stock_map[f"{c} {n}"] = c
+
+    defaults = {
+        "2330 台積電": "2330",
+        "2317 鴻海": "2317",
+        "2454 聯發科": "2454",
+        "2455 全新": "2455",
+        "3081 聯亞": "3081",
+        "2408 南亞科": "2408",
+        "2382 廣達": "2382",
+        "3017 奇鋐": "3017",
+        "2059 川湖": "2059",
+    }
+    stock_map.update(defaults)
+    return stock_map
+  except Exception:
+    return {
+        "2330 台積電": "2330",
+        "2317 鴻海": "2317",
+        "2454 聯發科": "2454",
+        "2455 全新": "2455",
+        "2408 南亞科": "2408",
+    }
 
 
 def log_anonymous_daily_stock(stock_code, stock_name):
@@ -493,14 +605,6 @@ def call_ai_model(api_key, prompt_text):
     return "❌ 尚未設定任何可用的 API Key！請於側邊欄輸入或配置 Secrets。"
 
   last_error = ""
-  models_to_try = [
-      "gemini-3.8-flash",
-      "gemini-3.7-flash",
-      "gemini-3.6-flash",
-      "gemini-3.5-flash",
-      "gemini-2.5-flash",
-  ]
-
   for idx_k, cur_key in enumerate(candidate_keys):
     try:
       if cur_key.startswith("sk-ant-"):
@@ -558,22 +662,10 @@ def call_ai_model(api_key, prompt_text):
 
       else:
         ai_client = genai.Client(api_key=cur_key)
-        for model_name in models_to_try:
-          for attempt in range(2):
-            try:
-              response = ai_client.models.generate_content(
-                  model=model_name, contents=prompt_text
-              )
-              if response and response.text:
-                return response.text
-            except Exception as model_err:
-              err_str = str(model_err)
-              last_error = err_str
-              if "503" in err_str or "429" in err_str:
-                t_mod.sleep(1)
-                continue
-              else:
-                break
+        response = ai_client.models.generate_content(
+            model="gemini-3.6-flash", contents=prompt_text
+        )
+        return response.text
 
     except Exception as e:
       last_error = str(e)
