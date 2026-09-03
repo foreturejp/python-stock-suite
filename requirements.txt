@@ -1,0 +1,12 @@
+streamlit>=1.35.0
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.18.0
+requests>=2.31.0
+yfinance>=0.2.38
+twstock>=1.4.0
+FinMind>=1.1.10
+feedparser>=6.0.10
+google-genai>=0.1.0
+pyarrow>=14.0.0
+fastparquet>=2024.2.0
