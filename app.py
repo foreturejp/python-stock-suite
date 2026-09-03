@@ -347,18 +347,18 @@ def get_cached_shareholding_dict():
     return {}, "讀取快取失敗"
 
 
-# 🎯 智慧版 `load_stock_list()`：支援中文欄位並反查補全
+# ─────────────────────────────────────────────────────────────
+# 🎯 智慧容錯搜尋引擎：從 stock_list.csv 自動查找代號與名稱
+# ─────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def load_stock_list():
-  stock_map = {}
+def load_stock_map():
+  stock_dict = {}
   csv_file = os.path.join(os.path.dirname(__file__), "stock_list.csv")
-
   if os.path.exists(csv_file):
     for enc in ["utf-8-sig", "utf-8", "big5", "cp950"]:
       try:
         df_csv = pd.read_csv(csv_file, dtype=str, encoding=enc)
         df_csv.columns = [str(c).strip() for c in df_csv.columns]
-
         code_col = next(
             (
                 c
@@ -375,45 +375,56 @@ def load_stock_list():
             ),
             None,
         )
-
         if code_col and name_col:
           for _, row in df_csv.iterrows():
             c = str(row[code_col]).strip()
             n = str(row[name_col]).strip()
             if c.isdigit() and len(c) == 4:
-              stock_map[f"{c} {n}"] = c
-              # 同時建立純代號的反查對應，確保即使用戶只打代號也能對應
-              stock_map[c] = c
-          if stock_map:
-            break
-        else:
-          for _, row in df_csv.iterrows():
-            if len(row) >= 2:
-              c = str(row.iloc[0]).strip()
-              n = str(row.iloc[1]).strip()
-              if c.isdigit() and len(c) == 4:
-                stock_map[f"{c} {n}"] = c
-                stock_map[c] = c
-          if stock_map:
+              stock_dict[c] = n
+          if stock_dict:
             break
       except Exception:
         continue
 
-  # 強制保底清單
+  # 預設保底
   defaults = {
-      "2330 台積電": "2330",
-      "2317 鴻海": "2317",
-      "2454 聯發科": "2454",
-      "1815 富喬": "1815",
-      "6223 旺矽": "6223",
-      "2408 南亞科": "2408",
+      "2330": "台積電",
+      "2317": "鴻海",
+      "2454": "聯發科",
+      "1815": "富喬",
+      "6223": "旺矽",
+      "2408": "南亞科",
   }
   for k, v in defaults.items():
-    if v not in stock_map.values():
-      stock_map[k] = v
-      stock_map[v] = v
+    if k not in stock_dict:
+      stock_dict[k] = v
 
-  return stock_map
+  return stock_dict
+
+
+def resolve_stock_input(user_input):
+  """輸入任意代號或名稱，自動從 stock_list.csv 撈出正確的 (代號, 名稱)"""
+  q = str(user_input).strip()
+  if not q:
+    return "2330", "台積電"
+
+  stock_dict = load_stock_map()
+
+  # 1. 如果直接輸入是代號 (例如 "1815")
+  if q in stock_dict:
+    return q, stock_dict[q]
+
+  # 2. 如果輸入的是名稱 (例如 "富喬")
+  for code, name in stock_dict.items():
+    if q in name or name in q or q == code:
+      return code, name
+
+  return q, "自訂個股"
+
+
+def load_stock_list():
+  stock_dict = load_stock_map()
+  return {f"{code} {name}": code for code, name in stock_dict.items()}
 
 
 def log_anonymous_daily_stock(stock_code, stock_name):
