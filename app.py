@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta
 import itertools
 import os
+import time as t_mod
 import warnings
 from google import genai
 import numpy as np
@@ -74,6 +75,9 @@ def get_stock_sector(code, name):
   code_str = str(code).strip()
   name_str = str(name).strip()
 
+  # 🎯 精準修正：富喬獨立歸類為玻纖布上游材料
+  if code_str == "1815" or "富喬" in name_str:
+    return "🧵 玻纖布與上游材料"
   if code_str == "2408" or "南亞科" in name_str:
     return "💾 記憶體與控制模組"
   if code_str == "1303" or name_str == "南亞":
@@ -182,10 +186,10 @@ def get_stock_sector(code, name):
       "4958": "🧬 PCB與高階載板",
       "6269": "🧬 PCB與高階載板",
       "8358": "🧬 PCB與高階載板",
-      "1815": "🧬 PCB與高階載板",
       "8039": "🧬 PCB與高階載板",
       "3715": "🧬 PCB與高階載板",
       "5469": "🧬 PCB與高階載板",
+      "1815": "🧵 玻纖布與上游材料",
       "2308": "🔋 電源管理與儲能",
       "2301": "🔋 電源管理與儲能",
       "6282": "🔋 電源管理與儲能",
@@ -298,6 +302,8 @@ def get_stock_sector(code, name):
   if code_str in SECTOR_MAP:
     return SECTOR_MAP[code_str]
 
+  if any(k in name_str for k in ["富喬", "台玻", "德宏", "建榮"]):
+    return "🧵 玻纖布與上游材料"
   if any(
       k in name_str
       for k in [
@@ -371,8 +377,7 @@ def get_stock_sector(code, name):
   ):
     return "🧬 PCB與高階載板"
   if any(
-      k in name_str
-      for k in ["勤誠", "營邦", "晟銘電", "迎廣", "川湖", "富世達"]
+      k in name_str for k in ["勤誠", "營邦", "晟銘電", "迎廣", "川湖", "富世達"]
   ):
     return "🖥️ 伺服器機殼與導軌"
   if any(k in name_str for k in ["華城", "士電", "中興電", "亞力", "大同"]):
@@ -388,8 +393,7 @@ def get_stock_sector(code, name):
   ):
     return "🔌 連接器與高頻傳輸"
   if any(
-      k in name_str
-      for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
+      k in name_str for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
   ):
     return "🔋 被動元件與電感"
   if any(k in name_str for k in ["大立光", "玉晶光", "先進光", "亞光"]):
@@ -526,6 +530,7 @@ def load_stock_list():
         "2382 廣達": "2382",
         "3017 奇鋐": "3017",
         "2059 川湖": "2059",
+        "1815 富喬": "1815",
     }
     stock_map.update(defaults)
     return stock_map
@@ -536,6 +541,7 @@ def load_stock_list():
         "2454 聯發科": "2454",
         "2455 全新": "2455",
         "2408 南亞科": "2408",
+        "1815 富喬": "1815",
     }
 
 
@@ -605,6 +611,14 @@ def call_ai_model(api_key, prompt_text):
     return "❌ 尚未設定任何可用的 API Key！請於側邊欄輸入或配置 Secrets。"
 
   last_error = ""
+  models_to_try = [
+      "gemini-3.8-flash",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-2.5-flash",
+  ]
+
   for idx_k, cur_key in enumerate(candidate_keys):
     try:
       if cur_key.startswith("sk-ant-"):
@@ -662,10 +676,22 @@ def call_ai_model(api_key, prompt_text):
 
       else:
         ai_client = genai.Client(api_key=cur_key)
-        response = ai_client.models.generate_content(
-            model="gemini-3.6-flash", contents=prompt_text
-        )
-        return response.text
+        for model_name in models_to_try:
+          for attempt in range(2):
+            try:
+              response = ai_client.models.generate_content(
+                  model=model_name, contents=prompt_text
+              )
+              if response and response.text:
+                return response.text
+            except Exception as model_err:
+              err_str = str(model_err)
+              last_error = err_str
+              if "503" in err_str or "429" in err_str:
+                t_mod.sleep(1)
+                continue
+              else:
+                break
 
     except Exception as e:
       last_error = str(e)
