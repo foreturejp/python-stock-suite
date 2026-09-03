@@ -302,152 +302,6 @@ def get_stock_sector(code, name):
   if code_str in SECTOR_MAP:
     return SECTOR_MAP[code_str]
 
-  if any(k in name_str for k in ["富喬", "台玻", "德宏", "建榮"]):
-    return "🧵 玻纖布與上游材料"
-  if any(
-      k in name_str
-      for k in [
-          "華邦電",
-          "群聯",
-          "威剛",
-          "十銓",
-          "宇瞻",
-          "創見",
-          "晶豪科",
-          "旺宏",
-      ]
-  ):
-    return "💾 記憶體與控制模組"
-  if any(
-      k in name_str
-      for k in [
-          "光聖",
-          "華星光",
-          "光環",
-          "波若威",
-          "上詮",
-          "聯光通",
-          "聯亞",
-          "全新",
-          "創威",
-      ]
-  ):
-    return "🔥 光通訊與矽光子"
-  if any(
-      k in name_str
-      for k in [
-          "奇鋐",
-          "雙鴻",
-          "健策",
-          "高力",
-          "泰碩",
-          "力致",
-          "動力",
-          "業強",
-      ]
-  ):
-    return "🧊 水冷與散熱模組"
-  if any(
-      k in name_str
-      for k in [
-          "弘塑",
-          "辛耘",
-          "萬潤",
-          "均華",
-          "志聖",
-          "家登",
-          "中砂",
-          "昇陽半",
-      ]
-  ):
-    return "🔬 半導體設備與廠務"
-  if any(
-      k in name_str
-      for k in [
-          "台光電",
-          "金像電",
-          "欣興",
-          "南電",
-          "景碩",
-          "台燿",
-          "聯茂",
-          "華通",
-          "定穎",
-      ]
-  ):
-    return "🧬 PCB與高階載板"
-  if any(
-      k in name_str for k in ["勤誠", "營邦", "晟銘電", "迎廣", "川湖", "富世達"]
-  ):
-    return "🖥️ 伺服器機殼與導軌"
-  if any(k in name_str for k in ["華城", "士電", "中興電", "亞力", "大同"]):
-    return "⚡ 重電與電網基建"
-  if any(
-      k in name_str
-      for k in ["上銀", "亞德客", "所羅門", "大銀微", "精銳", "昆盈"]
-  ):
-    return "🦾 工具機與機器人"
-  if any(
-      k in name_str
-      for k in ["貿聯", "嘉澤", "信邦", "宏致", "健和興", "凡甲"]
-  ):
-    return "🔌 連接器與高頻傳輸"
-  if any(
-      k in name_str for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
-  ):
-    return "🔋 被動元件與電感"
-  if any(k in name_str for k in ["大立光", "玉晶光", "先進光", "亞光"]):
-    return "📷 光學鏡頭與影像"
-  if any(k in name_str for k in ["群創", "友達", "彩晶"]):
-    return "📺 面板及光電顯示"
-  if any(
-      k in name_str
-      for k in ["長榮", "陽明", "萬海", "裕民", "慧洋", "新興"]
-  ):
-    return "🚢 航運交通"
-  if any(k in name_str for k in ["保瑞", "藥華藥", "美時", "康霈"]):
-    return "💊 生技醫療CDMO"
-  if any(k in name_str for k in ["興富發", "冠德", "國建", "華固"]):
-    return "🏘️ 營建與地產開發"
-  if any(
-      k in name_str
-      for k in ["台塑", "台化", "台苯", "國喬", "聯成", "塑膠", "化學"]
-  ):
-    return "🧪 塑膠與化學工業"
-
-  try:
-    c_int = int(code_str)
-  except Exception:
-    c_int = 0
-
-  if 2800 <= c_int <= 2899 or any(
-      k in name_str for k in ["銀行", "金控", "證券", "保險"]
-  ):
-    return "🏦 金融控股"
-  elif 2600 <= c_int <= 2649 or any(
-      k in name_str for k in ["海運", "航運", "航空"]
-  ):
-    return "🚢 航運交通"
-  elif 2500 <= c_int <= 2599:
-    return "🏘️ 營建與地產開發"
-  elif 1300 <= c_int <= 1349:
-    return "🧪 塑膠與化學工業"
-  elif 2000 <= c_int <= 2049:
-    return "🔩 鋼鐵工業"
-  elif 1500 <= c_int <= 1599:
-    return "⚡ 重電與電網基建"
-  elif 1600 <= c_int <= 1699:
-    return "⚡ 重電與電線電纜"
-  elif 1700 <= c_int <= 1799 or 4100 <= c_int <= 4199:
-    return "💊 生技醫療CDMO"
-  elif (
-      2300 <= c_int <= 2499
-      or 3000 <= c_int <= 3799
-      or 6000 <= c_int <= 6999
-      or 8000 <= c_int <= 8999
-  ):
-    return "🔌 電子零組件與模組"
-
   return "📊 其他傳統產業與消費"
 
 
@@ -493,7 +347,7 @@ def get_cached_shareholding_dict():
     return {}, "讀取快取失敗"
 
 
-# 🎯 升級版：完美支援中文欄位（代號、名稱）的 stock_list.csv 讀取函數
+# 🎯 智慧版 `load_stock_list()`：支援中文欄位並反查補全
 @st.cache_data(ttl=3600)
 def load_stock_list():
   stock_map = {}
@@ -503,10 +357,8 @@ def load_stock_list():
     for enc in ["utf-8-sig", "utf-8", "big5", "cp950"]:
       try:
         df_csv = pd.read_csv(csv_file, dtype=str, encoding=enc)
-        # 清理欄位名稱（去除前後空白）
         df_csv.columns = [str(c).strip() for c in df_csv.columns]
 
-        # 尋找代號與名稱欄位（支援中文「代號」、「名稱」或英文「code」、「name」）
         code_col = next(
             (
                 c
@@ -530,22 +382,24 @@ def load_stock_list():
             n = str(row[name_col]).strip()
             if c.isdigit() and len(c) == 4:
               stock_map[f"{c} {n}"] = c
+              # 同時建立純代號的反查對應，確保即使用戶只打代號也能對應
+              stock_map[c] = c
           if stock_map:
             break
         else:
-          # 若無對應欄位標題，預設第 0 欄為代號，第 1 欄為名稱
           for _, row in df_csv.iterrows():
             if len(row) >= 2:
               c = str(row.iloc[0]).strip()
               n = str(row.iloc[1]).strip()
               if c.isdigit() and len(c) == 4:
                 stock_map[f"{c} {n}"] = c
+                stock_map[c] = c
           if stock_map:
             break
       except Exception:
         continue
 
-  # 強制保底清單（確保 1815 富喬、6223 旺矽等 100% 存在）
+  # 強制保底清單
   defaults = {
       "2330 台積電": "2330",
       "2317 鴻海": "2317",
@@ -557,6 +411,7 @@ def load_stock_list():
   for k, v in defaults.items():
     if v not in stock_map.values():
       stock_map[k] = v
+      stock_map[v] = v
 
   return stock_map
 
