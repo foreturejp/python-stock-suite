@@ -22,9 +22,7 @@ from app import CB_DATABASE, GOOGLE_SHEET_WEBHOOK_URL, call_ai_model
 
 warnings.filterwarnings("ignore")
 
-st.set_page_config(
-    page_title="個股智慧量化儀表板", page_icon="📊", layout="wide"
-)
+st.set_page_config(page_title="個股智慧量化儀表板", page_icon="📊", layout="wide")
 
 st.markdown(
     """
@@ -38,55 +36,58 @@ st.markdown(
 )
 
 
-# ─── 獨立內建：本頁面專用股票清單載入函式 ───
-@st.cache_data(ttl=86400)
+# ─── 修正版：優先讀取 stock_list.csv 的股票清單載入函式 ───
+@st.cache_data(ttl=3600)
 def load_stock_list():
-  try:
-    url_twse = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&type=ALL"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(url_twse, headers=headers, timeout=10)
-    stock_map = {}
-    if res.status_code == 200 and res.text.strip().startswith("{"):
-      json_data = res.json()
-      if "tables" in json_data:
-        for table in json_data["tables"]:
-          if "fields" in table and "data" in table:
-            fields = table["fields"]
-            if any("證券代號" in str(f) for f in fields) and any(
-                "證券名稱" in str(f) for f in fields
-            ):
-              c_idx = [
-                  i for i, f in enumerate(fields) if "證券代號" in str(f)
-              ][0]
-              n_idx = [
-                  i for i, f in enumerate(fields) if "證券名稱" in str(f)
-              ][0]
-              for row in table["data"]:
-                c, n = str(row[c_idx]).strip(), str(row[n_idx]).strip()
-                if c.isdigit() and len(c) == 4:
-                  stock_map[f"{c} {n}"] = c
+  stock_map = {}
+  csv_file = root_dir / "stock_list.csv"
 
-    defaults = {
-        "2330 台積電": "2330",
-        "2317 鴻海": "2317",
-        "2454 聯發科": "2454",
-        "2455 全新": "2455",
-        "3081 聯亞": "3081",
-        "2408 南亞科": "2408",
-        "2382 廣達": "2382",
-        "3017 奇鋐": "3017",
-        "2059 川湖": "2059",
-    }
-    stock_map.update(defaults)
-    return stock_map
-  except Exception:
-    return {
-        "2330 台積電": "2330",
-        "2317 鴻海": "2317",
-        "2454 聯發科": "2454",
-        "2455 全新": "2455",
-        "2408 南亞科": "2408",
-    }
+  if csv_file.exists():
+    for enc in ["utf-8-sig", "utf-8", "big5", "cp950"]:
+      try:
+        df_csv = pd.read_csv(csv_file, dtype=str, encoding=enc)
+        df_csv.columns = [str(c).strip() for c in df_csv.columns]
+        code_col = next(
+            (
+                c
+                for c in df_csv.columns
+                if any(k in c for k in ["代號", "code", "id"])
+            ),
+            None,
+        )
+        name_col = next(
+            (
+                c
+                for c in df_csv.columns
+                if any(k in c for k in ["名稱", "name"])
+            ),
+            None,
+        )
+        if code_col and name_col:
+          for _, row in df_csv.iterrows():
+            c = str(row[code_col]).strip()
+            n = str(row[name_col]).strip()
+            if c.isdigit() and len(c) == 4:
+              stock_map[f"{c} {n}"] = c
+          if stock_map:
+            break
+      except Exception:
+        continue
+
+  # 強制保底清單
+  defaults = {
+      "2330 台積電": "2330",
+      "2317 鴻海": "2317",
+      "2454 聯發科": "2454",
+      "1815 富喬": "1815",
+      "6223 旺矽": "6223",
+      "2408 南亞科": "2408",
+  }
+  for k, v in defaults.items():
+    if v not in stock_map.values():
+      stock_map[k] = v
+
+  return stock_map
 
 
 # ─── 獨立內建：Google Sheet 記錄函式 ───
@@ -113,7 +114,7 @@ for display_text, code in raw_stock_list.items():
   name_to_code[name] = code
   name_to_code[display_text] = code
 
-# 🔑 側邊欄 API Key 設定（收折備用，留空時由後台輪詢 secrets.toml）
+# 🔑 側邊欄 API Key 設定
 with st.sidebar.expander("🔑 API Key 設定（可選/備用）", expanded=False):
   user_api_key = st.text_input(
       "手動輸入 Key（若已設定 secrets.toml 請留空）:",
@@ -218,7 +219,7 @@ def fetch_finmind_chips(stock_code, api_key=""):
           "券資比(%)": margin_ratio,
       }).set_index("日期")
   except Exception as e:
-    print(f"FinMind 數據抓取例外 (可能需檢查 Token): {e}")
+    print(f"FinMind 數據抓取例外: {e}")
 
   return df_inst_chart, df_margin_15
 
@@ -257,7 +258,7 @@ with st.container(border=True):
     user_input = st.text_input(
         "🔍 請輸入台股代號或名稱",
         value="",
-        placeholder="例如: 2330, 台積電, 1885, 南亞科",
+        placeholder="例如: 2330, 台積電, 1815, 富喬",
     )
   with col_days:
     chart_days_option = st.selectbox(
@@ -513,7 +514,6 @@ if user_input:
                 ),
             )
 
-            # Row 1: K線行情與均線、滿足點
             fig.add_trace(
                 go.Candlestick(
                     x=df_chart["Date_Str"],
@@ -570,7 +570,6 @@ if user_input:
                 annotation_text=f"前高壓力: {b_high}",
             )
 
-            # Row 2: 成交量
             vol_colors = [
                 "red" if row["Close"] >= row["Open"] else "green"
                 for index, row in df_chart.iterrows()
@@ -599,7 +598,6 @@ if user_input:
                   col=1,
               )
 
-            # Row 3: MACD
             macd_colors = [
                 "red" if val >= 0 else "green" for val in df_chart["MACD_Bar"]
             ]
