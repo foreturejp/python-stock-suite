@@ -53,19 +53,6 @@ except Exception as e:
 if not user_api_key and os.path.exists("temp_creds.json"):
   user_api_key = "VERTEX_AI_ACTIVE"
 
-# 側邊欄手動覆蓋設定區
-with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
-  manual_key = st.text_input(
-      "手動覆蓋 Key（若需使用個人額度可在此輸入）:",
-      value="" if user_api_key == "VERTEX_AI_ACTIVE" else user_api_key,
-      type="password",
-      placeholder="AIzaSy...",
-      key="dashboard_manual_api_key",
-  )
-  if manual_key:
-    user_api_key = manual_key
-    client = genai.Client(api_key=manual_key)
-
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
