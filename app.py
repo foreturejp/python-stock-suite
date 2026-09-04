@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 import itertools
+import json
 import os
 import warnings
 from google import genai
@@ -10,29 +11,45 @@ import requests
 import streamlit as st
 import twstock
 import yfinance as yf
-import json
-import os
 
-# 🔑 自動將 Streamlit Secrets 中的 GCP 服務帳戶 JSON 轉為環境變數供 Vertex AI 使用
+# ─────────────────────────────────────────────────────────────
+# 🔑 GCP 服務帳戶與 Vertex AI 憑證安全初始化
+# ─────────────────────────────────────────────────────────────
 try:
   if "gcp_service_account" in st.secrets:
-    # 將 Secrets 轉為字典並寫入暫存環境變數或檔案，供 Google Auth 讀取
     service_account_info = dict(st.secrets["gcp_service_account"])
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"] = json.dumps(
-        service_account_info
-    )
-    # 如果您的 call_ai_model 支援直接讀取環境變數或專案 ID，這裡可以一併設定
+    with open("temp_creds.json", "w", encoding="utf-8") as f:
+      json.dump(service_account_info, f, ensure_ascii=False, indent=4)
+
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
     os.environ["VERTEX_PROJECT_ID"] = service_account_info.get(
         "project_id", "streamlit-vertex-sa"
     )
-    user_api_key = "VERTEX_AI_ACTIVE"  # 標記已有憑證
+    user_api_key = "VERTEX_AI_ACTIVE"
+  elif "GOOGLE_CREDENTIALS" in st.secrets:
+    with open("temp_creds.json", "w", encoding="utf-8") as f:
+      f.write(st.secrets["GOOGLE_CREDENTIALS"])
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
+    user_api_key = "VERTEX_AI_ACTIVE"
   elif "GEMINI_API_KEY" in st.secrets:
-    user_api_key = st.secrets["GEMINI_API_KEY"]
+    user_api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
   else:
     user_api_key = ""
 except Exception as e:
   user_api_key = ""
   print(f"載入 GCP 服務帳戶憑證例外: {e}")
+
+# 初始化 Vertex AI Client
+try:
+  if user_api_key == "VERTEX_AI_ACTIVE":
+    client = genai.Client(vertexai=True)
+  elif user_api_key:
+    client = genai.Client(api_key=user_api_key)
+  else:
+    client = None
+except Exception as e:
+  client = None
+  print(f"初始化 genai Client 失敗: {e}")
 
 # 側邊欄手動覆蓋設定區
 with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
@@ -45,15 +62,7 @@ with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=Fa
   )
   if manual_key:
     user_api_key = manual_key
-
-# 從 Streamlit 雲端 Secrets 讀取憑證並建立暫存檔
-with open("temp_creds.json", "w", encoding="utf-8") as f:
-  f.write(st.secrets["GOOGLE_CREDENTIALS"])
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
-
-# 初始化 Vertex AI Client（解鎖 $10 專案的高速與高配額）
-client = genai.Client(vertexai=True)
+    client = genai.Client(api_key=manual_key)
 
 warnings.filterwarnings("ignore")
 
@@ -432,8 +441,7 @@ def get_stock_sector(code, name):
   ):
     return "🔌 連接器與高頻傳輸"
   if any(
-      k in name_str
-      for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
+      k in name_str for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
   ):
     return "🔋 被動元件與電感"
   if any(k in name_str for k in ["大立光", "玉晶光", "先進光", "亞光"]):
@@ -533,6 +541,167 @@ def get_cached_shareholding_dict():
     return {}, "讀取快取失敗"
 
 
+# ─────────────────────────────────────────────────────────────
+# 🎯 多組 API Key 自動輪換與故障轉移（Round-Robin & Failover）
+# ─────────────────────────────────────────────────────────────
+def get_all_configured_keys():
+  keys = []
+  try:
+    if "GEMINI_API_KEYS" in st.secrets:
+      val = st.secrets["GEMINI_API_KEYS"]
+      if isinstance(val, list):
+        keys.extend([str(k).strip() for k in val if str(k).strip()])
+      elif isinstance(val, str):
+        keys.extend([k.strip() for k in val.split(",") if k.strip()])
+    if "GEMINI_API_KEY_1" in st.secrets:
+      keys.append(str(st.secrets["GEMINI_API_KEY_1"]).strip())
+    if "GEMINI_API_KEY_2" in st.secrets:
+      keys.append(str(st.secrets["GEMINI_API_KEY_2"]).strip())
+    if "GEMINI_API_KEY" in st.secrets:
+      keys.append(str(st.secrets["GEMINI_API_KEY"]).strip())
+  except Exception:
+    pass
+  return list(dict.fromkeys(keys))
+
+
+if "key_cycle_iter" not in st.session_state:
+  configured_keys = get_all_configured_keys()
+  st.session_state.key_cycle_iter = (
+      itertools.cycle(configured_keys) if configured_keys else None
+  )
+
+
+def call_ai_model(api_key, prompt_text):
+  global client
+  try:
+    if client is not None:
+      response = client.models.generate_content(
+          model="gemini-2.5-flash", contents=prompt_text
+      )
+      return response.text
+  except Exception as e:
+    print(f"預設 Client 調用失敗，嘗試手動帶入 Key: {e}")
+
+  candidate_keys = []
+  if api_key and str(api_key).strip() and api_key != "VERTEX_AI_ACTIVE":
+    candidate_keys.append(str(api_key).strip())
+
+  all_keys = get_all_configured_keys()
+  if all_keys:
+    if (
+        "key_cycle_iter" not in st.session_state
+        or st.session_state.key_cycle_iter is None
+    ):
+      st.session_state.key_cycle_iter = itertools.cycle(all_keys)
+    primary_key = next(st.session_state.key_cycle_iter)
+    if primary_key not in candidate_keys:
+      candidate_keys.append(primary_key)
+    for k in all_keys:
+      if k not in candidate_keys:
+        candidate_keys.append(k)
+
+  if not candidate_keys:
+    return "❌ 尚未設定任何可用的 API Key 或 GCP 憑證！"
+
+  last_error = ""
+  for idx_k, cur_key in enumerate(candidate_keys):
+    try:
+      if cur_key.startswith("sk-ant-"):
+        headers = {
+            "x-api-key": cur_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        data = {
+            "model": "claude-3-5-sonnet-20241022",
+            "max_tokens": 2048,
+            "messages": [{"role": "user", "content": prompt_text}],
+        }
+        res = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=data,
+            timeout=30,
+        )
+        if res.status_code == 200:
+          return res.json().get("content", [{}])[0].get("text", "無回應內容")
+        elif res.status_code in [429, 503]:
+          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
+          continue
+        else:
+          return f"❌ Claude API 錯誤 ({res.status_code}): {res.text}"
+
+      elif cur_key.startswith("sk-"):
+        headers = {
+            "Authorization": f"Bearer {cur_key}",
+            "content-type": "application/json",
+        }
+        data = {
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": prompt_text}],
+        }
+        res = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30,
+        )
+        if res.status_code == 200:
+          return (
+              res.json()
+              .get("choices", [{}])[0]
+              .get("message", {})
+              .get("content", "無回應內容")
+          )
+        elif res.status_code in [429, 503]:
+          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
+          continue
+        else:
+          return f"❌ OpenAI API 錯誤 ({res.status_code}): {res.text}"
+
+      else:
+        temp_client = genai.Client(api_key=cur_key)
+        response = temp_client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt_text
+        )
+        return response.text
+
+    except Exception as e:
+      last_error = str(e)
+      continue
+
+  return f"❌ 所有可用 API Key 調用皆失敗。最後例外錯誤: {last_error}"
+
+
+@st.cache_data(ttl=86400)
+def fetch_institutional_investors(stock_code, days=120):
+  try:
+    url = f"https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=&selectType=ALLBUT0999&stockNo={stock_code}"
+    response = requests.get(url, timeout=5)
+    if response.status_code == 200 and response.text.strip().startswith("{"):
+      data = response.json()
+      if "data" in data and data["data"]:
+        df = pd.DataFrame(data["data"], columns=data["fields"])
+        df["日期"] = (
+            df["日期"]
+            .str.replace("/", "-")
+            .apply(
+                lambda x: str(int(x.split("-")[0]) + 1911)
+                + "-"
+                + "-".join(x.split("-")[1:])
+            )
+        )
+        df["日期"] = pd.to_datetime(df["日期"])
+        for col in ["外資買賣超", "投信買賣超"]:
+          if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(",", "", regex=False)
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        return df.set_index("日期").sort_index().tail(days)
+  except Exception:
+    pass
+  return pd.DataFrame()
+
+
 @st.cache_data(ttl=86400)
 def load_stock_list():
   try:
@@ -594,157 +763,6 @@ def log_anonymous_daily_stock(stock_code, stock_name):
       requests.post(GOOGLE_SHEET_WEBHOOK_URL, json=payload, timeout=3)
   except Exception:
     pass
-
-
-# ─────────────────────────────────────────────────────────────
-# 🎯 多組 API Key 自動輪換與故障轉移（Round-Robin & Failover）
-# ─────────────────────────────────────────────────────────────
-def get_all_configured_keys():
-  keys = []
-  try:
-    if "GEMINI_API_KEYS" in st.secrets:
-      val = st.secrets["GEMINI_API_KEYS"]
-      if isinstance(val, list):
-        keys.extend([str(k).strip() for k in val if str(k).strip()])
-      elif isinstance(val, str):
-        keys.extend([k.strip() for k in val.split(",") if k.strip()])
-    if "GEMINI_API_KEY_1" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY_1"]).strip())
-    if "GEMINI_API_KEY_2" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY_2"]).strip())
-    if "GEMINI_API_KEY" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY"]).strip())
-  except Exception:
-    pass
-  return list(dict.fromkeys(keys))
-
-
-if "key_cycle_iter" not in st.session_state:
-  configured_keys = get_all_configured_keys()
-  st.session_state.key_cycle_iter = (
-      itertools.cycle(configured_keys) if configured_keys else None
-  )
-
-
-def call_ai_model(api_key, prompt_text):
-  candidate_keys = []
-  if api_key and str(api_key).strip():
-    candidate_keys.append(str(api_key).strip())
-
-  all_keys = get_all_configured_keys()
-  if all_keys:
-    if (
-        "key_cycle_iter" not in st.session_state
-        or st.session_state.key_cycle_iter is None
-    ):
-      st.session_state.key_cycle_iter = itertools.cycle(all_keys)
-    primary_key = next(st.session_state.key_cycle_iter)
-    if primary_key not in candidate_keys:
-      candidate_keys.append(primary_key)
-    for k in all_keys:
-      if k not in candidate_keys:
-        candidate_keys.append(k)
-
-  if not candidate_keys:
-    return "❌ 尚未設定任何可用的 API Key！請於側邊欄輸入或配置 Secrets。"
-
-  last_error = ""
-  for idx_k, cur_key in enumerate(candidate_keys):
-    try:
-      if cur_key.startswith("sk-ant-"):
-        headers = {
-            "x-api-key": cur_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        data = {
-            "model": "claude-3-5-sonnet-20241022",
-            "max_tokens": 2048,
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        res = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        if res.status_code == 200:
-          return res.json().get("content", [{}])[0].get("text", "無回應內容")
-        elif res.status_code in [429, 503]:
-          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
-          continue
-        else:
-          return f"❌ Claude API 錯誤 ({res.status_code}): {res.text}"
-
-      elif cur_key.startswith("sk-"):
-        headers = {
-            "Authorization": f"Bearer {cur_key}",
-            "content-type": "application/json",
-        }
-        data = {
-            "model": "gpt-4o",
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        res = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        if res.status_code == 200:
-          return (
-              res.json()
-              .get("choices", [{}])[0]
-              .get("message", {})
-              .get("content", "無回應內容")
-          )
-        elif res.status_code in [429, 503]:
-          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
-          continue
-        else:
-          return f"❌ OpenAI API 錯誤 ({res.status_code}): {res.text}"
-
-      else:
-        ai_client = genai.Client(api_key=cur_key)
-        response = ai_client.models.generate_content(
-            model="gemini-3.6-flash", contents=prompt_text
-        )
-        return response.text
-
-    except Exception as e:
-      last_error = str(e)
-      continue
-
-  return f"❌ 所有可用 API Key 調用皆失敗。最後例外錯誤: {last_error}"
-
-
-@st.cache_data(ttl=86400)
-def fetch_institutional_investors(stock_code, days=120):
-  try:
-    url = f"https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=&selectType=ALLBUT0999&stockNo={stock_code}"
-    response = requests.get(url, timeout=5)
-    if response.status_code == 200 and response.text.strip().startswith("{"):
-      data = response.json()
-      if "data" in data and data["data"]:
-        df = pd.DataFrame(data["data"], columns=data["fields"])
-        df["日期"] = (
-            df["日期"]
-            .str.replace("/", "-")
-            .apply(
-                lambda x: str(int(x.split("-")[0]) + 1911)
-                + "-"
-                + "-".join(x.split("-")[1:])
-            )
-        )
-        df["日期"] = pd.to_datetime(df["日期"])
-        for col in ["外資買賣超", "投信買賣超"]:
-          if col in df.columns:
-            df[col] = df[col].astype(str).str.replace(",", "", regex=False)
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        return df.set_index("日期").sort_index().tail(days)
-  except Exception:
-    pass
-  return pd.DataFrame()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -836,9 +854,7 @@ def fetch_market_volume_rank(_progress_bar=None, _status_box=None):
         (df_all["成交量(張)"] * df_all["收盤價"]) / 100000.0
     ).round(2)
 
-    top_amount = df_all.sort_values(by="成交金額(億)", ascending=False).head(
-        350
-    )
+    top_amount = df_all.sort_values(by="成交金額(億)", ascending=False).head(350)
     top_volume = df_all.sort_values(by="成交量(張)", ascending=False).head(150)
 
     df_market = (
