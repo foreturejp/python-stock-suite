@@ -10,7 +10,10 @@ from plotly.subplots import make_subplots
 import requests
 import streamlit as st
 import yfinance as yf
+import json
 
+# 從 st.secrets 讀取並轉回 dict
+creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 # 確保模組路徑包含專案根目錄
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
