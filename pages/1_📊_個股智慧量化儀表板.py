@@ -114,23 +114,28 @@ for display_text, code in raw_stock_list.items():
   name_to_code[display_text] = code
 
 # 🔑 優先讀取 st.secrets 內建付費版 API Key，並支援側邊欄手動覆蓋
-user_api_key = ""
-try:
-  if "GEMINI_API_KEY" in st.secrets:
-    user_api_key = st.secrets["GEMINI_API_KEY"]
-except Exception:
-  pass
+if "user_api_key" not in st.session_state:
+  try:
+    if "GEMINI_API_KEY" in st.secrets:
+      st.session_state.user_api_key = st.secrets["GEMINI_API_KEY"]
+    else:
+      st.session_state.user_api_key = ""
+  except Exception:
+    st.session_state.user_api_key = ""
 
 with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
+  # 讓輸入框預設顯示當前使用的 Key（如果有的話），允許手動覆蓋
   manual_key = st.text_input(
       "手動覆蓋 Key（若需使用個人額度可在此輸入）:",
-      value="",
+      value=st.session_state.user_api_key,
       type="password",
       placeholder="AIzaSy...",
       key="dashboard_manual_api_key",
   )
-  if manual_key:
-    user_api_key = manual_key
+  if manual_key != st.session_state.user_api_key:
+    st.session_state.user_api_key = manual_key
+
+user_api_key = st.session_state.user_api_ke
 
 
 @st.cache_data(ttl=86400)
