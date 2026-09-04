@@ -13,13 +13,13 @@ import twstock
 import yfinance as yf
 
 # ─────────────────────────────────────────────────────────────
-# 🔑 GCP 服務帳戶與 Vertex AI 憑證安全初始化
+# 🔑 GCP 服務帳戶與 AI 憑證強制初始化（防阻擋版）
 # ─────────────────────────────────────────────────────────────
 user_api_key = ""
 client = None
 
 try:
-  # 優先檢查 GCP 服務帳戶 JSON 格式
+  # 1. 優先檢查 GCP 服務帳戶 JSON 格式
   if "gcp_service_account" in st.secrets:
     service_account_info = dict(st.secrets["gcp_service_account"])
     with open("temp_creds.json", "w", encoding="utf-8") as f:
@@ -29,7 +29,7 @@ try:
     os.environ["VERTEX_PROJECT_ID"] = service_account_info.get(
         "project_id", "streamlit-vertex-sa"
     )
-    user_api_key = "VERTEX_AI_ACTIVE"
+    user_api_key = "VERTEX_AI_ACTIVE"  # 強制賦值，通過所有前端檢查
   elif "GOOGLE_CREDENTIALS" in st.secrets:
     with open("temp_creds.json", "w", encoding="utf-8") as f:
       f.write(st.secrets["GOOGLE_CREDENTIALS"])
@@ -49,7 +49,11 @@ try:
 except Exception as e:
   print(f"初始化 genai Client 失敗: {e}")
 
-# 側邊欄手動覆蓋設定區（若後端已啟用 Vertex AI，則輸入框預設顯示提示文字）
+# 如果後端有 Service Account 但變數被清空，強制保底
+if not user_api_key and os.path.exists("temp_creds.json"):
+  user_api_key = "VERTEX_AI_ACTIVE"
+
+# 側邊欄手動覆蓋設定區
 with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
   manual_key = st.text_input(
       "手動覆蓋 Key（若需使用個人額度可在此輸入）:",
