@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from pathlib import Path
+import json
+import os
 import sys
 import warnings
 import feedparser
@@ -10,10 +12,26 @@ from plotly.subplots import make_subplots
 import requests
 import streamlit as st
 import yfinance as yf
-import json
 
-# 從 st.secrets 讀取並轉回 dict
-creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+# ─────────────────────────────────────────────────────────────
+# 🔑 GCP 服務帳戶與 AI 憑證自動初始化（分頁專用）
+# ─────────────────────────────────────────────────────────────
+user_api_key = "VERTEX_AI_ACTIVE"
+
+try:
+  if "gcp_service_account" in st.secrets:
+    service_account_info = dict(st.secrets["gcp_service_account"])
+    with open("temp_creds.json", "w", encoding="utf-8") as f:
+      json.dump(service_account_info, f, ensure_ascii=False, indent=4)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
+    os.environ["VERTEX_PROJECT_ID"] = service_account_info.get(
+        "project_id", "streamlit-vertex-sa"
+    )
+  elif "GEMINI_API_KEY" in st.secrets:
+    user_api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+except Exception as e:
+  print(f"初始化憑證例外: {e}")
+
 # 確保模組路徑包含專案根目錄
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
@@ -115,30 +133,6 @@ for display_text, code in raw_stock_list.items():
   code_to_name[code] = name
   name_to_code[name] = code
   name_to_code[display_text] = code
-
-# 🔑 優先讀取 st.secrets 內建付費版 API Key，並支援側邊欄手動覆蓋
-if "user_api_key" not in st.session_state:
-  try:
-    if "GEMINI_API_KEY" in st.secrets:
-      st.session_state.user_api_key = st.secrets["GEMINI_API_KEY"]
-    else:
-      st.session_state.user_api_key = ""
-  except Exception:
-    st.session_state.user_api_key = ""
-
-with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
-  # 讓輸入框預設顯示當前使用的 Key（如果有的話），允許手動覆蓋
-  manual_key = st.text_input(
-      "手動覆蓋 Key（若需使用個人額度可在此輸入）:",
-      value=st.session_state.user_api_key,
-      type="password",
-      placeholder="AIzaSy...",
-      key="dashboard_manual_api_key",
-  )
-  if manual_key != st.session_state.user_api_key:
-    st.session_state.user_api_key = manual_key
-
-user_api_key = st.session_state.user_api_key
 
 
 @st.cache_data(ttl=86400)
@@ -732,19 +726,14 @@ if user_input:
                       "🚀 發送給 AI", use_container_width=True
                   )
 
-              if submitted:
-                if not user_api_key:
-                  st.warning(
-                      "⚠️ 系統未偵測到 API Key，請至左側設定展開手動輸入。"
-                  )
-                elif user_question:
-                  st.session_state[chat_history_key].append(
-                      ("user", user_question)
-                  )
-                  with st.spinner(
-                      "🤖 AI 操盤手正在結合當前量化數據與具體量能標準為您擬定對策..."
-                  ):
-                    context_prompt = f"""
+              if submitted and user_question:
+                st.session_state[chat_history_key].append(
+                    ("user", user_question)
+                )
+                with st.spinner(
+                    "🤖 AI 操盤手正在結合當前量化數據與具體量能標準為您擬定對策..."
+                ):
+                  context_prompt = f"""
 你是一位頂尖的台股量化操盤手與籌碼專家。使用者目前正在詢問關於 【{target_code} {stock_name}】 的操盤問題。
 以下是該個股的最新量化與雙軌戰略數據背景（請在回答時務必引用具體張數與價位，絕對不要只給抽象形容詞）：
 - 最新收盤價：{p_latest:.1f} (漲跌幅: {chg_latest:+.2f}%)
@@ -763,11 +752,11 @@ if user_input:
 
 請給予專業、精煉、具備具體操作建議（進出點、均價防守、風險控管，以及明確指名張數的量能解讀）的繁體中文回覆。
 """
-                    ai_reply = call_ai_model(user_api_key, context_prompt)
-                    st.session_state[chat_history_key].append(
-                        ("assistant", ai_reply)
-                    )
-                    st.rerun()
+                  ai_reply = call_ai_model(user_api_key, context_prompt)
+                  st.session_state[chat_history_key].append(
+                      ("assistant", ai_reply)
+                  )
+                  st.rerun()
 
               if st.button("🗑️ 清除對話紀錄", key=f"clear_{target_code}"):
                 st.session_state[chat_history_key] = []
@@ -812,24 +801,19 @@ if user_input:
                   "🚀 啟動 AI 進行雙軌滿足點與量能標準深度推理",
                   use_container_width=True,
               ):
-                if not user_api_key:
-                  st.warning(
-                      "⚠️ 系統未偵測到 API Key，請至左側設定展開手動輸入。"
+                with st.spinner(
+                    "🤖 AI 操盤手正在整合雙軌極限與具體量化張數進行深度推理..."
+                ):
+                  cb_info = CB_DATABASE.get(target_code, None)
+                  cb_prompt_text = (
+                      f"可轉債資訊:名稱={cb_info['cb_name']},"
+                      f" 轉換價={cb_info['conversion_price']},"
+                      f" 狀態={cb_info['status']}"
+                      if cb_info
+                      else "無特定可轉債登錄紀錄"
                   )
-                else:
-                  with st.spinner(
-                      "🤖 AI 操盤手正在整合雙軌極限與具體量化張數進行深度推理..."
-                  ):
-                    cb_info = CB_DATABASE.get(target_code, None)
-                    cb_prompt_text = (
-                        f"可轉債資訊:名稱={cb_info['cb_name']},"
-                        f" 轉換價={cb_info['conversion_price']},"
-                        f" 狀態={cb_info['status']}"
-                        if cb_info
-                        else "無特定可轉債登錄紀錄"
-                    )
 
-                    prompt_summary = f"""
+                  prompt_summary = f"""
 你是一位資深的台股量化操盤手與主力和籌碼專家。請針對以下個股進行「雙軌戰略」走勢與量價推理（回答時務必明確帶出具體張數與價位）：
 - 股票代號與名稱：{target_code} {stock_name}
 - 最新收盤價：{p_latest:.1f} (漲跌幅: {chg_latest:+.2f}%)
@@ -849,11 +833,9 @@ if user_input:
 2. **進場低接或續抱時的「具體量能張數標準」**：
 3. **5日均線防守與風險控管紀律**：
 """
-                    ai_response_text = call_ai_model(
-                        user_api_key, prompt_summary
-                    )
-                    st.markdown("---")
-                    st.markdown(ai_response_text)
+                  ai_response_text = call_ai_model(user_api_key, prompt_summary)
+                  st.markdown("---")
+                  st.markdown(ai_response_text)
     except Exception as e:
       st.error(f"❌ 查詢錯誤: {e}")
 else:
