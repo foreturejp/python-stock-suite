@@ -727,8 +727,7 @@ if user_input:
               if submitted:
                 if not user_api_key:
                   st.warning(
-                      "⚠️ 請先在左側欄位輸入您自己的 **Gemini API Key**"
-                      " 才能與 AI 對話！"
+                      "⚠️ 系統未偵測到 API Key，請至左側設定展開手動輸入。"
                   )
                 elif user_question:
                   st.session_state[chat_history_key].append(
@@ -807,8 +806,7 @@ if user_input:
               ):
                 if not user_api_key:
                   st.warning(
-                      "⚠️ 請先在左側欄位輸入您自己的 **Gemini API Key**"
-                      " 才能執行 AI 深度推理！"
+                      "⚠️ 系統未偵測到 API Key，請至左側設定展開手動輸入。"
                   )
                 else:
                   with st.spinner(
