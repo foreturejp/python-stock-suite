@@ -14,7 +14,7 @@ import twstock
 import yfinance as yf
 
 # ─────────────────────────────────────────────────────────────
-# 🔑 完美對應您後台 GOOGLE_CREDENTIALS 字串的 Vertex AI 初始化
+# 🔑 Vertex AI 企業通道專用初始化（強制使用 GOOGLE_CREDENTIALS）
 # ─────────────────────────────────────────────────────────────
 client = None
 
@@ -24,6 +24,7 @@ try:
     sa_info = json.loads(raw_cred) if isinstance(raw_cred, str) else dict(raw_cred)
     project_id = sa_info.get("project_id", "streamlit-vertex-sa")
 
+    # 1. 建立標準的 Vertex AI 雲端授權範圍
     scopes = [
         "https://www.googleapis.com/auth/cloud-platform",
         "https://www.googleapis.com/auth/generative-language",
@@ -32,6 +33,7 @@ try:
         sa_info, scopes=scopes
     )
 
+    # 2. 強制透過 Vertex AI 通道建立企業級 Client
     client = genai.Client(
         vertexai=True,
         credentials=credentials,
@@ -525,18 +527,18 @@ def get_cached_shareholding_dict():
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 唯一正確的 AI 呼叫核心（鎖定 gemini-3.7-flash）
+# 🎯 唯一正確的 Vertex AI 呼叫核心（鎖定 gemini-2.5-flash）
 # ─────────────────────────────────────────────────────────────
 def call_ai_model(api_key, prompt_text):
   global client
   try:
     if client is not None:
       response = client.models.generate_content(
-          model="gemini-3.7-flash", contents=prompt_text
+          model="gemini-2.5-flash", contents=prompt_text
       )
       return response.text
     else:
-      return "❌ AI 客戶端尚未初始化，請檢查 Streamlit Secrets 中的 GOOGLE_CREDENTIALS 設定。"
+      return "❌ Vertex AI 客戶端尚未初始化，請檢查 GCP 服務帳戶權限。"
   except Exception as e:
     return f"❌ AI 調用失敗 (Vertex AI): {e}"
 
