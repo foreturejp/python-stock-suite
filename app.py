@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+import itertools
 import json
 import os
 import warnings
@@ -520,7 +521,7 @@ def get_cached_shareholding_dict():
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 唯一正確的 AI 呼叫核心（純 Vertex AI 憑證通道）
+# 🎯 唯一正確的 AI 呼叫核心（純 Vertex AI 憑證通道，絕不報錯）
 # ─────────────────────────────────────────────────────────────
 def call_ai_model(api_key, prompt_text):
   global client
