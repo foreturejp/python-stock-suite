@@ -113,27 +113,24 @@ for display_text, code in raw_stock_list.items():
   name_to_code[name] = code
   name_to_code[display_text] = code
 
-# 🔑 側邊欄 API Key 設定（要求使用者自行輸入以保護額度）
-with st.sidebar:
-  st.markdown("---")
-  st.markdown("### 🔑 使用者專屬 API 授權")
-  user_api_key = st.text_input(
-      "輸入您自己的 Gemini API Key",
+# 🔑 側邊欄 API Key 設定（優先讀取 secrets 內建付費版，支援手動覆蓋）
+user_api_key = ""
+try:
+  if "GEMINI_API_KEY" in st.secrets:
+    user_api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+  pass
+
+with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
+  manual_key = st.text_input(
+      "手動覆蓋 Key（若需使用個人額度可在此輸入）:",
       value="",
       type="password",
-      help="為避免共用額度超支，請輸入您個人從 Google AI Studio 申請的 API Key。",
+      placeholder="AIzaSy...",
+      key="dashboard_manual_api_key",
   )
-  if not user_api_key:
-    st.warning("⚠️ 請先輸入您的 API Key 才能解鎖 AI 智慧功能！")
-
-
-@st.cache_data(ttl=86400)
-def fetch_finmind_chips(stock_code, api_key=""):
-  df_margin_15 = pd.DataFrame()
-  df_inst_chart = pd.DataFrame()
-
-  if not api_key:
-    return df_inst_chart, df_margin_15
+  if manual_key:
+    user_api_key = manual_key
 
   try:
     api = DataLoader()
