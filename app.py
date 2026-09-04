@@ -554,13 +554,24 @@ if "key_cycle_iter" not in st.session_state:
 def call_ai_model(api_key, prompt_text):
   global client
   try:
+    # 優先使用全域已初始化的 client
     if client is not None:
       response = client.models.generate_content(
           model="gemini-2.5-flash", contents=prompt_text
       )
       return response.text
   except Exception as e:
-    print(f"預設 Client 調用失敗，嘗試手動帶入 Key: {e}")
+    print(f"預設 Client 調用失敗，嘗試透過 Vertex AI 重試: {e}")
+
+  try:
+    # 強制透過 GCP 服務帳戶憑證（Vertex AI）建立純淨連線，不帶入任何有問題的字串 Key
+    vertex_client = genai.Client(vertexai=True)
+    response = vertex_client.models.generate_content(
+        model="gemini-2.5-flash", contents=prompt_text
+    )
+    return response.text
+  except Exception as e:
+    return f"❌ AI 調用失敗，例外錯誤: {e}"
 
   candidate_keys = []
   if api_key and str(api_key).strip() and api_key != "VERTEX_AI_ACTIVE":
