@@ -113,7 +113,7 @@ for display_text, code in raw_stock_list.items():
   name_to_code[name] = code
   name_to_code[display_text] = code
 
-# 🔑 側邊欄 API Key 設定（優先讀取 secrets 內建付費版，支援手動覆蓋）
+# 🔑 優先讀取 st.secrets 內建付費版 API Key，並支援側邊欄手動覆蓋
 user_api_key = ""
 try:
   if "GEMINI_API_KEY" in st.secrets:
@@ -131,6 +131,15 @@ with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=Fa
   )
   if manual_key:
     user_api_key = manual_key
+
+
+@st.cache_data(ttl=86400)
+def fetch_finmind_chips(stock_code, api_key=""):
+  df_margin_15 = pd.DataFrame()
+  df_inst_chart = pd.DataFrame()
+
+  if not api_key:
+    return df_inst_chart, df_margin_15
 
   try:
     api = DataLoader()
