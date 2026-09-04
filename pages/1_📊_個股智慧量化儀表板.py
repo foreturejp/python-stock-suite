@@ -135,7 +135,7 @@ with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=Fa
   if manual_key != st.session_state.user_api_key:
     st.session_state.user_api_key = manual_key
 
-user_api_key = st.session_state.user_api_ke
+user_api_key = st.session_state.user_api_key
 
 
 @st.cache_data(ttl=86400)
