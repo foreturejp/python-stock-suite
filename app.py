@@ -4,6 +4,7 @@ import json
 import os
 import warnings
 from google import genai
+from google.oauth2 import service_account
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -13,36 +14,38 @@ import twstock
 import yfinance as yf
 
 # ─────────────────────────────────────────────────────────────
-# 🔑 終極防護：GCP 服務帳戶與 AI 憑證自動初始化
+# 🔑 標準 Vertex AI 服務帳戶安全初始化（強制指定憑證）
 # ─────────────────────────────────────────────────────────────
-user_api_key = "VERTEX_AI_ACTIVE"
 client = None
 
 try:
   if "gcp_service_account" in st.secrets:
-    service_account_info = dict(st.secrets["gcp_service_account"])
-    with open("temp_creds.json", "w", encoding="utf-8") as f:
-      json.dump(service_account_info, f, ensure_ascii=False, indent=4)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
-    os.environ["VERTEX_PROJECT_ID"] = service_account_info.get(
-        "project_id", "streamlit-vertex-sa"
-    )
-  elif "GEMINI_API_KEY" in st.secrets:
-    user_api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-except Exception as e:
-  print(f"初始化憑證例外: {e}")
+    # 1. 讀取 Secrets 中的字典
+    sa_info = dict(st.secrets["gcp_service_account"])
+    project_id = sa_info.get("project_id", "streamlit-vertex-sa")
 
-# 初始化 Vertex AI Client
-try:
-  if user_api_key == "VERTEX_AI_ACTIVE":
-    client = genai.Client(vertexai=True)
-  else:
-    client = genai.Client(api_key=user_api_key)
+    # 2. 建立 Google 官方標準認證物件
+    credentials = service_account.Credentials.from_service_account_info(
+        sa_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+
+    # 3. 初始化 genai Client，明確綁定 vertexai=True、憑證與專案
+    client = genai.Client(
+        vertexai=True,
+        credentials=credentials,
+        project=project_id,
+        location="us-central1",  # 預設地區，可依您的 GCP 設定調整
+    )
 except Exception as e:
+  print(f"Vertex AI 客戶端初始化失敗: {e}")
+
+# 萬一上方的 client 初始化失敗，提供一個安全的退守機制
+if client is None:
   try:
     client = genai.Client(vertexai=True)
-  except Exception as inner_e:
-    print(f"Client 初始化完全失敗: {inner_e}")
+  except Exception as e:
+    print(f"退守初始化失敗: {e}")
 
 warnings.filterwarnings("ignore")
 
@@ -554,12 +557,16 @@ if "key_cycle_iter" not in st.session_state:
 def call_ai_model(api_key, prompt_text):
   global client
   try:
-    # 優先使用全域已初始化的 client
     if client is not None:
+      # 統一使用高效能且穩定的 gemini-2.5-flash 模型
       response = client.models.generate_content(
           model="gemini-2.5-flash", contents=prompt_text
       )
       return response.text
+  except Exception as e:
+    return f"❌ AI 調用失敗 (Vertex AI): {e}"
+
+  return "❌ AI 客戶端尚未初始化，請檢查 GCP 服務帳戶 Secrets 設定。"
   except Exception as e:
     print(f"預設 Client 調用失敗，嘗試透過 Vertex AI 重試: {e}")
 
