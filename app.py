@@ -1,5 +1,4 @@
 from datetime import datetime, time, timedelta
-import itertools
 import json
 import os
 import warnings
@@ -521,40 +520,12 @@ def get_cached_shareholding_dict():
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 多組 API Key 自動輪換與故障轉移（Round-Robin & Failover）
+# 🎯 唯一正確的 AI 呼叫核心（純 Vertex AI 憑證通道）
 # ─────────────────────────────────────────────────────────────
-def get_all_configured_keys():
-  keys = []
-  try:
-    if "GEMINI_API_KEYS" in st.secrets:
-      val = st.secrets["GEMINI_API_KEYS"]
-      if isinstance(val, list):
-        keys.extend([str(k).strip() for k in val if str(k).strip()])
-      elif isinstance(val, str):
-        keys.extend([k.strip() for k in val.split(",") if k.strip()])
-    if "GEMINI_API_KEY_1" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY_1"]).strip())
-    if "GEMINI_API_KEY_2" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY_2"]).strip())
-    if "GEMINI_API_KEY" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY"]).strip())
-  except Exception:
-    pass
-  return list(dict.fromkeys(keys))
-
-
-if "key_cycle_iter" not in st.session_state:
-  configured_keys = get_all_configured_keys()
-  st.session_state.key_cycle_iter = (
-      itertools.cycle(configured_keys) if configured_keys else None
-  )
-
-
 def call_ai_model(api_key, prompt_text):
   global client
   try:
     if client is not None:
-      # 使用透過 Vertex AI 官方憑證初始化的頂級模型
       response = client.models.generate_content(
           model="gemini-3.7-flash", contents=prompt_text
       )
@@ -562,95 +533,7 @@ def call_ai_model(api_key, prompt_text):
   except Exception as e:
     return f"❌ AI 調用失敗 (Vertex AI): {e}"
 
-  candidate_keys = []
-  if api_key and str(api_key).strip() and api_key != "VERTEX_AI_ACTIVE":
-    candidate_keys.append(str(api_key).strip())
-
-  all_keys = get_all_configured_keys()
-  if all_keys:
-    if (
-        "key_cycle_iter" not in st.session_state
-        or st.session_state.key_cycle_iter is None
-    ):
-      st.session_state.key_cycle_iter = itertools.cycle(all_keys)
-    primary_key = next(st.session_state.key_cycle_iter)
-    if primary_key not in candidate_keys:
-      candidate_keys.append(primary_key)
-    for k in all_keys:
-      if k not in candidate_keys:
-        candidate_keys.append(k)
-
-  if not candidate_keys:
-    return "❌ 尚未設定任何可用的 API Key 或 GCP 憑證！"
-
-  last_error = ""
-  for idx_k, cur_key in enumerate(candidate_keys):
-    try:
-      if cur_key.startswith("sk-ant-"):
-        headers = {
-            "x-api-key": cur_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        data = {
-            "model": "claude-3-5-sonnet-20241022",
-            "max_tokens": 2048,
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        res = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        if res.status_code == 200:
-          return res.json().get("content", [{}])[0].get("text", "無回應內容")
-        elif res.status_code in [429, 503]:
-          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
-          continue
-        else:
-          return f"❌ Claude API 錯誤 ({res.status_code}): {res.text}"
-
-      elif cur_key.startswith("sk-"):
-        headers = {
-            "Authorization": f"Bearer {cur_key}",
-            "content-type": "application/json",
-        }
-        data = {
-            "model": "gpt-4o",
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        res = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        if res.status_code == 200:
-          return (
-              res.json()
-              .get("choices", [{}])[0]
-              .get("message", {})
-              .get("content", "無回應內容")
-          )
-        elif res.status_code in [429, 503]:
-          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
-          continue
-        else:
-          return f"❌ OpenAI API 錯誤 ({res.status_code}): {res.text}"
-
-      else:
-        temp_client = genai.Client(api_key=cur_key)
-        response = temp_client.models.generate_content(
-            model="gemini-3.7-flash", contents=prompt_text
-        )
-        return response.text
-
-    except Exception as e:
-      last_error = str(e)
-      continue
-
-  return f"❌ 所有可用 API Key 調用皆失敗。最後例外錯誤: {last_error}"
+  return "❌ AI 客戶端尚未初始化，請檢查 GCP 服務帳戶 Secrets 設定。"
 
 
 @st.cache_data(ttl=86400)
