@@ -11,6 +11,15 @@ import streamlit as st
 import twstock
 import yfinance as yf
 
+# 從 Streamlit 雲端 Secrets 讀取憑證並建立暫存檔
+with open("temp_creds.json", "w", encoding="utf-8") as f:
+  f.write(st.secrets["GOOGLE_CREDENTIALS"])
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
+
+# 初始化 Vertex AI Client（解鎖 $10 專案的高速與高配額）
+client = genai.Client(vertexai=True)
+
 warnings.filterwarnings("ignore")
 
 st.set_page_config(
