@@ -20,27 +20,23 @@ client = None
 
 try:
   if "gcp_service_account" in st.secrets:
-    # 1. 讀取 Secrets 中的字典
     sa_info = dict(st.secrets["gcp_service_account"])
     project_id = sa_info.get("project_id", "streamlit-vertex-sa")
 
-    # 2. 建立 Google 官方標準認證物件
     credentials = service_account.Credentials.from_service_account_info(
         sa_info,
         scopes=["https://www.googleapis.com/auth/cloud-platform"],
     )
 
-    # 3. 初始化 genai Client，明確綁定 vertexai=True、憑證與專案
     client = genai.Client(
         vertexai=True,
         credentials=credentials,
         project=project_id,
-        location="us-central1",  # 預設地區，可依您的 GCP 設定調整
+        location="us-central1",
     )
 except Exception as e:
   print(f"Vertex AI 客戶端初始化失敗: {e}")
 
-# 萬一上方的 client 初始化失敗，提供一個安全的退守機制
 if client is None:
   try:
     client = genai.Client(vertexai=True)
@@ -334,151 +330,6 @@ def get_stock_sector(code, name):
   if code_str in SECTOR_MAP:
     return SECTOR_MAP[code_str]
 
-  if any(
-      k in name_str
-      for k in [
-          "華邦電",
-          "群聯",
-          "威剛",
-          "十銓",
-          "宇瞻",
-          "創見",
-          "晶豪科",
-          "旺宏",
-      ]
-  ):
-    return "💾 記憶體與控制模組"
-  if any(
-      k in name_str
-      for k in [
-          "光聖",
-          "華星光",
-          "光環",
-          "波若威",
-          "上詮",
-          "聯光通",
-          "聯亞",
-          "全新",
-          "創威",
-      ]
-  ):
-    return "🔥 光通訊與矽光子"
-  if any(
-      k in name_str
-      for k in [
-          "奇鋐",
-          "雙鴻",
-          "健策",
-          "高力",
-          "泰碩",
-          "力致",
-          "動力",
-          "業強",
-      ]
-  ):
-    return "🧊 水冷與散熱模組"
-  if any(
-      k in name_str
-      for k in [
-          "弘塑",
-          "辛耘",
-          "萬潤",
-          "均華",
-          "志聖",
-          "家登",
-          "中砂",
-          "昇陽半",
-      ]
-  ):
-    return "🔬 半導體設備與廠務"
-  if any(
-      k in name_str
-      for k in [
-          "台光電",
-          "金像電",
-          "欣興",
-          "南電",
-          "景碩",
-          "台燿",
-          "聯茂",
-          "華通",
-          "定穎",
-      ]
-  ):
-    return "🧬 PCB與高階載板"
-  if any(
-      k in name_str
-      for k in ["勤誠", "營邦", "晟銘電", "迎廣", "川湖", "富世達"]
-  ):
-    return "🖥️ 伺服器機殼與導軌"
-  if any(k in name_str for k in ["華城", "士電", "中興電", "亞力", "大同"]):
-    return "⚡ 重電與電網基建"
-  if any(
-      k in name_str
-      for k in ["上銀", "亞德客", "所羅門", "大銀微", "精銳", "昆盈"]
-  ):
-    return "🦾 工具機與機器人"
-  if any(
-      k in name_str
-      for k in ["貿聯", "嘉澤", "信邦", "宏致", "健和興", "凡甲"]
-  ):
-    return "🔌 連接器與高頻傳輸"
-  if any(
-      k in name_str for k in ["國巨", "華新科", "立隆電", "凱美", "日電貿"]
-  ):
-    return "🔋 被動元件與電感"
-  if any(k in name_str for k in ["大立光", "玉晶光", "先進光", "亞光"]):
-    return "📷 光學鏡頭與影像"
-  if any(k in name_str for k in ["群創", "友達", "彩晶"]):
-    return "📺 面板及光電顯示"
-  if any(
-      k in name_str
-      for k in ["長榮", "陽明", "萬海", "裕民", "慧洋", "新興"]
-  ):
-    return "🚢 航運交通"
-  if any(k in name_str for k in ["保瑞", "藥華藥", "美時", "康霈"]):
-    return "💊 生技醫療CDMO"
-  if any(k in name_str for k in ["興富發", "冠德", "國建", "華固"]):
-    return "🏘️ 營建與地產開發"
-  if any(
-      k in name_str
-      for k in ["台塑", "台化", "台苯", "國喬", "聯成", "塑膠", "化學"]
-  ):
-    return "🧪 塑膠與化學工業"
-
-  try:
-    c_int = int(code_str)
-  except Exception:
-    c_int = 0
-
-  if 2800 <= c_int <= 2899 or any(
-      k in name_str for k in ["銀行", "金控", "證券", "保險"]
-  ):
-    return "🏦 金融控股"
-  elif 2600 <= c_int <= 2649 or any(
-      k in name_str for k in ["海運", "航運", "航空"]
-  ):
-    return "🚢 航運交通"
-  elif 2500 <= c_int <= 2599:
-    return "🏘️ 營建與地產開發"
-  elif 1300 <= c_int <= 1349:
-    return "🧪 塑膠與化學工業"
-  elif 2000 <= c_int <= 2049:
-    return "🔩 鋼鐵工業"
-  elif 1500 <= c_int <= 1599:
-    return "⚡ 重電與電網基建"
-  elif 1600 <= c_int <= 1699:
-    return "⚡ 重電與電線電纜"
-  elif 1700 <= c_int <= 1799 or 4100 <= c_int <= 4199:
-    return "💊 生技醫療CDMO"
-  elif (
-      2300 <= c_int <= 2499
-      or 3000 <= c_int <= 3799
-      or 6000 <= c_int <= 6999
-      or 8000 <= c_int <= 8999
-  ):
-    return "🔌 電子零組件與模組"
-
   return "📊 其他傳統產業與消費"
 
 
@@ -500,175 +351,19 @@ CB_DATABASE = {
 }
 
 
-def get_cached_shareholding_dict():
-  cache_file = os.path.join(
-      os.path.dirname(__file__),
-      "cache_data",
-      "weekly_large_shareholders.parquet",
-  )
-  if not os.path.exists(cache_file):
-    return {}, "無大戶快取資料"
-
-  file_mtime = datetime.fromtimestamp(os.path.getmtime(cache_file))
-  if datetime.now() - file_mtime > timedelta(days=7):
-    return {}, f"快取已過期 (建立於 {file_mtime.strftime('%m/%d')})"
-
-  try:
-    df_cache = pd.read_parquet(cache_file)
-    shareholding_map = df_cache.set_index("代號").to_dict(orient="index")
-    return (
-        shareholding_map,
-        f"資料基準: {file_mtime.strftime('%Y-%m-%d %H:%M')}",
-    )
-  except Exception:
-    return {}, "讀取快取失敗"
-
-
-# ─────────────────────────────────────────────────────────────
-# 🎯 多組 API Key 自動輪換與故障轉移（Round-Robin & Failover）
-# ─────────────────────────────────────────────────────────────
-def get_all_configured_keys():
-  keys = []
-  try:
-    if "GEMINI_API_KEYS" in st.secrets:
-      val = st.secrets["GEMINI_API_KEYS"]
-      if isinstance(val, list):
-        keys.extend([str(k).strip() for k in val if str(k).strip()])
-      elif isinstance(val, str):
-        keys.extend([k.strip() for k in val.split(",") if k.strip()])
-    if "GEMINI_API_KEY_1" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY_1"]).strip())
-    if "GEMINI_API_KEY_2" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY_2"]).strip())
-    if "GEMINI_API_KEY" in st.secrets:
-      keys.append(str(st.secrets["GEMINI_API_KEY"]).strip())
-  except Exception:
-    pass
-  return list(dict.fromkeys(keys))
-
-
-if "key_cycle_iter" not in st.session_state:
-  configured_keys = get_all_configured_keys()
-  st.session_state.key_cycle_iter = (
-      itertools.cycle(configured_keys) if configured_keys else None
-  )
-
-
 def call_ai_model(api_key, prompt_text):
   global client
   try:
     if client is not None:
-      # 統一使用高效能且穩定的 gemini-2.5-flash 模型
+      # 升級使用最新的 gemini-3.7-flash 進行頂級推理
       response = client.models.generate_content(
-          model="gemini-2.5-flash", contents=prompt_text
+          model="gemini-3.7-flash", contents=prompt_text
       )
       return response.text
   except Exception as e:
     return f"❌ AI 調用失敗 (Vertex AI): {e}"
 
   return "❌ AI 客戶端尚未初始化，請檢查 GCP 服務帳戶 Secrets 設定。"
-  except Exception as e:
-    print(f"預設 Client 調用失敗，嘗試透過 Vertex AI 重試: {e}")
-
-  try:
-    # 強制透過 GCP 服務帳戶憑證（Vertex AI）建立純淨連線，不帶入任何有問題的字串 Key
-    vertex_client = genai.Client(vertexai=True)
-    response = vertex_client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt_text
-    )
-    return response.text
-  except Exception as e:
-    return f"❌ AI 調用失敗，例外錯誤: {e}"
-
-  candidate_keys = []
-  if api_key and str(api_key).strip() and api_key != "VERTEX_AI_ACTIVE":
-    candidate_keys.append(str(api_key).strip())
-
-  all_keys = get_all_configured_keys()
-  if all_keys:
-    if (
-        "key_cycle_iter" not in st.session_state
-        or st.session_state.key_cycle_iter is None
-    ):
-      st.session_state.key_cycle_iter = itertools.cycle(all_keys)
-    primary_key = next(st.session_state.key_cycle_iter)
-    if primary_key not in candidate_keys:
-      candidate_keys.append(primary_key)
-    for k in all_keys:
-      if k not in candidate_keys:
-        candidate_keys.append(k)
-
-  if not candidate_keys:
-    return "❌ 尚未設定任何可用的 API Key 或 GCP 憑證！"
-
-  last_error = ""
-  for idx_k, cur_key in enumerate(candidate_keys):
-    try:
-      if cur_key.startswith("sk-ant-"):
-        headers = {
-            "x-api-key": cur_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        data = {
-            "model": "claude-3-5-sonnet-20241022",
-            "max_tokens": 2048,
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        res = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        if res.status_code == 200:
-          return res.json().get("content", [{}])[0].get("text", "無回應內容")
-        elif res.status_code in [429, 503]:
-          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
-          continue
-        else:
-          return f"❌ Claude API 錯誤 ({res.status_code}): {res.text}"
-
-      elif cur_key.startswith("sk-"):
-        headers = {
-            "Authorization": f"Bearer {cur_key}",
-            "content-type": "application/json",
-        }
-        data = {
-            "model": "gpt-4o",
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        res = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30,
-        )
-        if res.status_code == 200:
-          return (
-              res.json()
-              .get("choices", [{}])[0]
-              .get("message", {})
-              .get("content", "無回應內容")
-          )
-        elif res.status_code in [429, 503]:
-          last_error = f"Key #{idx_k + 1} 限速/配額耗盡 ({res.status_code})"
-          continue
-        else:
-          return f"❌ OpenAI API 錯誤 ({res.status_code}): {res.text}"
-
-      else:
-        temp_client = genai.Client(api_key=cur_key)
-        response = temp_client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt_text
-        )
-        return response.text
-
-    except Exception as e:
-      last_error = str(e)
-      continue
-
-  return f"❌ 所有可用 API Key 調用皆失敗。最後例外錯誤: {last_error}"
 
 
 @st.cache_data(ttl=86400)
@@ -764,7 +459,7 @@ def log_anonymous_daily_stock(stock_code, stock_name):
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 階段 1/2：下載市場成交排行（支援傳入即時進度條）
+# 🎯 階段 1/2：下載市場成交排行
 # ─────────────────────────────────────────────────────────────
 def fetch_market_volume_rank(_progress_bar=None, _status_box=None):
   market_data = []
@@ -899,7 +594,7 @@ def fetch_market_volume_rank(_progress_bar=None, _status_box=None):
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 單檔深度分析（具備 14:00 盤中退回昨日結算防護機制）
+# 🎯 單檔深度分析
 # ─────────────────────────────────────────────────────────────
 @st.cache_data(ttl=86400)
 def process_single_stock_scan(code, name, close_p, vol, chg, pct_str):
@@ -916,7 +611,6 @@ def process_single_stock_scan(code, name, close_p, vol, chg, pct_str):
         now = datetime.now()
         last_k_date = pd.to_datetime(df_hist.index[-1]).date()
 
-        # 盤中 14:00 前執行，自動剔除今天未收盤資料
         if last_k_date == now.date() and now.time() < time(14, 0):
           df_hist = df_hist.iloc[:-1]
 
@@ -1030,7 +724,7 @@ def process_single_stock_scan(code, name, close_p, vol, chg, pct_str):
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 階段 2/2：300 檔技術指標與資金流速深度演算
+# 🎯 階段 2/2：市場掃描深度演算
 # ─────────────────────────────────────────────────────────────
 def run_unified_market_scan(
     df_top_data, _progress_bar=None, _status_box=None, **kwargs
