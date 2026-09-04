@@ -10,6 +10,41 @@ import requests
 import streamlit as st
 import twstock
 import yfinance as yf
+import json
+import os
+
+# 🔑 自動將 Streamlit Secrets 中的 GCP 服務帳戶 JSON 轉為環境變數供 Vertex AI 使用
+try:
+  if "gcp_service_account" in st.secrets:
+    # 將 Secrets 轉為字典並寫入暫存環境變數或檔案，供 Google Auth 讀取
+    service_account_info = dict(st.secrets["gcp_service_account"])
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"] = json.dumps(
+        service_account_info
+    )
+    # 如果您的 call_ai_model 支援直接讀取環境變數或專案 ID，這裡可以一併設定
+    os.environ["VERTEX_PROJECT_ID"] = service_account_info.get(
+        "project_id", "streamlit-vertex-sa"
+    )
+    user_api_key = "VERTEX_AI_ACTIVE"  # 標記已有憑證
+  elif "GEMINI_API_KEY" in st.secrets:
+    user_api_key = st.secrets["GEMINI_API_KEY"]
+  else:
+    user_api_key = ""
+except Exception as e:
+  user_api_key = ""
+  print(f"載入 GCP 服務帳戶憑證例外: {e}")
+
+# 側邊欄手動覆蓋設定區
+with st.sidebar.expander("🔑 API Key 設定（預設已內建）", expanded=False):
+  manual_key = st.text_input(
+      "手動覆蓋 Key（若需使用個人額度可在此輸入）:",
+      value="" if user_api_key == "VERTEX_AI_ACTIVE" else user_api_key,
+      type="password",
+      placeholder="AIzaSy...",
+      key="dashboard_manual_api_key",
+  )
+  if manual_key:
+    user_api_key = manual_key
 
 # 從 Streamlit 雲端 Secrets 讀取憑證並建立暫存檔
 with open("temp_creds.json", "w", encoding="utf-8") as f:
