@@ -14,7 +14,7 @@ import twstock
 import yfinance as yf
 
 # ─────────────────────────────────────────────────────────────
-# 🔑 標準 Vertex AI 服務帳戶安全初始化（強制指定憑證）
+# 🔑 標準 Vertex AI 服務帳戶安全初始化（完美對應 st.secrets JSON）
 # ─────────────────────────────────────────────────────────────
 client = None
 
@@ -23,9 +23,12 @@ try:
     sa_info = dict(st.secrets["gcp_service_account"])
     project_id = sa_info.get("project_id", "streamlit-vertex-sa")
 
+    scopes = [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/generative-language",
+    ]
     credentials = service_account.Credentials.from_service_account_info(
-        sa_info,
-        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        sa_info, scopes=scopes
     )
 
     client = genai.Client(
@@ -35,7 +38,7 @@ try:
         location="us-central1",
     )
 except Exception as e:
-  print(f"Vertex AI 客戶端初始化失敗: {e}")
+  print(f"Vertex AI 憑證初始化例外: {e}")
 
 if client is None:
   try:
@@ -521,7 +524,7 @@ def get_cached_shareholding_dict():
 
 
 # ─────────────────────────────────────────────────────────────
-# 🎯 唯一正確的 AI 呼叫核心（純 Vertex AI 憑證通道，絕不報錯）
+# 🎯 唯一正確的 AI 呼叫核心（鎖定 gemini-3.7-flash）
 # ─────────────────────────────────────────────────────────────
 def call_ai_model(api_key, prompt_text):
   global client
@@ -531,10 +534,10 @@ def call_ai_model(api_key, prompt_text):
           model="gemini-3.7-flash", contents=prompt_text
       )
       return response.text
+    else:
+      return "❌ AI 客戶端尚未初始化，請檢查 Streamlit Secrets 中的 gcp_service_account 設定。"
   except Exception as e:
     return f"❌ AI 調用失敗 (Vertex AI): {e}"
-
-  return "❌ AI 客戶端尚未初始化，請檢查 GCP 服務帳戶 Secrets 設定。"
 
 
 @st.cache_data(ttl=86400)
