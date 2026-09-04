@@ -4,7 +4,6 @@ import json
 import os
 import warnings
 from google import genai
-from google.oauth2 import service_account
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -14,31 +13,31 @@ import twstock
 import yfinance as yf
 
 # ─────────────────────────────────────────────────────────────
-# 🔑 標準 Vertex AI 服務帳戶安全初始化（完美對應 st.secrets JSON）
+# 🔑 雲端網頁專用：將 Secrets JSON 寫入暫存檔以啟動 Vertex AI
 # ─────────────────────────────────────────────────────────────
 client = None
 
 try:
   if "gcp_service_account" in st.secrets:
+    # 1. 取得 Streamlit 後台的 GCP 服務帳戶字典
     sa_info = dict(st.secrets["gcp_service_account"])
     project_id = sa_info.get("project_id", "streamlit-vertex-sa")
 
-    scopes = [
-        "https://www.googleapis.com/auth/cloud-platform",
-        "https://www.googleapis.com/auth/generative-language",
-    ]
-    credentials = service_account.Credentials.from_service_account_info(
-        sa_info, scopes=scopes
-    )
+    # 2. 在雲端環境中建立暫存認證檔
+    with open("temp_creds.json", "w", encoding="utf-8") as f:
+      json.dump(sa_info, f, ensure_ascii=False, indent=4)
 
+    # 3. 強制指定 Google 官方認證與專案環境變數（這是雲端網頁最穩定的做法）
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
+    os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
+    os.environ["VERTEX_PROJECT_ID"] = project_id
+
+    # 4. 初始化 Vertex AI 用戶端
     client = genai.Client(
-        vertexai=True,
-        credentials=credentials,
-        project=project_id,
-        location="us-central1",
+        vertexai=True, project=project_id, location="us-central1"
     )
 except Exception as e:
-  print(f"Vertex AI 憑證初始化例外: {e}")
+  print(f"Vertex AI 雲端初始化例外: {e}")
 
 if client is None:
   try:
