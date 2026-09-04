@@ -13,45 +13,36 @@ import twstock
 import yfinance as yf
 
 # ─────────────────────────────────────────────────────────────
-# 🔑 GCP 服務帳戶與 AI 憑證強制初始化（防阻擋版）
+# 🔑 終極防護：GCP 服務帳戶與 AI 憑證自動初始化
 # ─────────────────────────────────────────────────────────────
-user_api_key = ""
+user_api_key = "VERTEX_AI_ACTIVE"
 client = None
 
 try:
-  # 1. 優先檢查 GCP 服務帳戶 JSON 格式
   if "gcp_service_account" in st.secrets:
     service_account_info = dict(st.secrets["gcp_service_account"])
     with open("temp_creds.json", "w", encoding="utf-8") as f:
       json.dump(service_account_info, f, ensure_ascii=False, indent=4)
-
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
     os.environ["VERTEX_PROJECT_ID"] = service_account_info.get(
         "project_id", "streamlit-vertex-sa"
     )
-    user_api_key = "VERTEX_AI_ACTIVE"  # 強制賦值，通過所有前端檢查
-  elif "GOOGLE_CREDENTIALS" in st.secrets:
-    with open("temp_creds.json", "w", encoding="utf-8") as f:
-      f.write(st.secrets["GOOGLE_CREDENTIALS"])
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "temp_creds.json"
-    user_api_key = "VERTEX_AI_ACTIVE"
   elif "GEMINI_API_KEY" in st.secrets:
     user_api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
 except Exception as e:
-  print(f"載入 GCP 服務帳戶憑證例外: {e}")
+  print(f"初始化憑證例外: {e}")
 
 # 初始化 Vertex AI Client
 try:
   if user_api_key == "VERTEX_AI_ACTIVE":
     client = genai.Client(vertexai=True)
-  elif user_api_key:
+  else:
     client = genai.Client(api_key=user_api_key)
 except Exception as e:
-  print(f"初始化 genai Client 失敗: {e}")
-
-# 如果後端有 Service Account 但變數被清空，強制保底
-if not user_api_key and os.path.exists("temp_creds.json"):
-  user_api_key = "VERTEX_AI_ACTIVE"
+  try:
+    client = genai.Client(vertexai=True)
+  except Exception as inner_e:
+    print(f"Client 初始化完全失敗: {inner_e}")
 
 warnings.filterwarnings("ignore")
 
