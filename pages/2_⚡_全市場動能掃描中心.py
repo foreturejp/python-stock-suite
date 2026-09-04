@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
-from pathlib import Path
 import pickle  # 👈 用於將每日掃描結果快速保存至硬碟
+from pathlib import Path
 import sys
 import numpy as np
 import pandas as pd
@@ -300,8 +300,8 @@ if st.session_state.scan_run and not st.session_state.df_top.empty:
                     break
                 tags_html_parts.append(
                     f'<span style="background-color: {bg_color}; color: #ffffff;'
-                    f' padding: 3px 8px; border-radius: 4px; font-size: 12px;'
-                    f' font-weight: bold; margin-right: 6px; display:'
+                    f" padding: 3px 8px; border-radius: 4px; font-size: 12px;"
+                    f" font-weight: bold; margin-right: 6px; display:"
                     f' inline-block; box-shadow: 0 1px 2px'
                     f' rgba(0,0,0,0.2);">{t}</span>'
                 )
@@ -335,7 +335,7 @@ if st.session_state.scan_run and not st.session_state.df_top.empty:
 
     # ─────────────────────────────────────────────────────────
     # 🧠 側邊欄 AI 智慧比對中樞（標的選取、自訂問題、啟動發送）
-    # ─────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────
     with st.sidebar:
       st.markdown("---")
       st.markdown("### 🤖 AI 跨標的比對中樞")
@@ -405,16 +405,6 @@ if st.session_state.scan_run and not st.session_state.df_top.empty:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # 🎯 備用 Key 設定區（如果 secrets.toml 沒讀到，可展開直接輸入）
-        with st.expander("🔑 API Key 設定（可選/備用）", expanded=False):
-          manual_api_key = st.text_input(
-              "手動輸入 Key（支援逗號分隔兩組）:",
-              value="",
-              type="password",
-              placeholder="AIzaSy..., AIzaSy...",
-              key="sidebar_manual_api_key",
-          )
-
         # 🎯 自訂提問輸入框
         user_ai_question = st.text_area(
             "💬 自訂 AI 提問/戰略焦點（可選）：",
@@ -461,7 +451,8 @@ if st.session_state.scan_run and not st.session_state.df_top.empty:
 3. 潛在風險提示（高檔爆量滯漲或假突破）
 4. 具體進出場防守點位與戰略總結
 """
+              # 🛠️ 將帶入的 api_key 留空，強制讓後端統一使用 Vertex AI 服務帳戶通道
               st.session_state.ai_analysis_result = call_ai_model(
-                  manual_api_key, batch_prompt
+                  "", batch_prompt
               )
               st.rerun()
